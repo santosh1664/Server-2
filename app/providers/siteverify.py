@@ -92,12 +92,8 @@ class RecaptchaSiteVerify(SiteVerifyAdapter):
         timeout_seconds: float = 8.0,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
-        super().__init__(
-            secret=secret,
-            allowed_hostnames=allowed_hostnames,
-            timeout_seconds=timeout_seconds,
-            transport=transport,
-        )
+        super().__init__(secret=secret, allowed_hostnames=allowed_hostnames,
+                         timeout_seconds=timeout_seconds, transport=transport)
         self.expected_action = expected_action
         self.minimum_score = minimum_score
 
@@ -121,8 +117,10 @@ class RecaptchaSiteVerify(SiteVerifyAdapter):
             return VerificationResult(False, self.provider, "action_mismatch", hostname, action, score, errors)
         if score is not None:
             try:
-                if float(score) < self.minimum_score:
-                    return VerificationResult(False, self.provider, "score_below_threshold", hostname, action, float(score), errors)
+                score_value = float(score)
+                if score_value < self.minimum_score:
+                    return VerificationResult(False, self.provider, "score_below_threshold", hostname, action, score_value, errors)
+                score = score_value
             except (TypeError, ValueError):
                 return VerificationResult(False, self.provider, "invalid_score", hostname, action, None, errors)
 
@@ -142,12 +140,8 @@ class HCaptchaSiteVerify(SiteVerifyAdapter):
         timeout_seconds: float = 8.0,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
-        super().__init__(
-            secret=secret,
-            allowed_hostnames=allowed_hostnames,
-            timeout_seconds=timeout_seconds,
-            transport=transport,
-        )
+        super().__init__(secret=secret, allowed_hostnames=allowed_hostnames,
+                         timeout_seconds=timeout_seconds, transport=transport)
         if not sitekey:
             raise ValueError("hCaptcha sitekey is required")
         self.sitekey = sitekey
@@ -190,21 +184,14 @@ class TurnstileSiteVerify(SiteVerifyAdapter):
         timeout_seconds: float = 8.0,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
-        super().__init__(
-            secret=secret,
-            allowed_hostnames=allowed_hostnames,
-            timeout_seconds=timeout_seconds,
-            transport=transport,
-        )
+        super().__init__(secret=secret, allowed_hostnames=allowed_hostnames,
+                         timeout_seconds=timeout_seconds, transport=transport)
         self.expected_action = expected_action
 
     async def verify(self, token: str, **context) -> VerificationResult:
         if not token or len(token) > 2048:
             return VerificationResult(False, self.provider, "invalid_token")
-        payload = await self._post({
-            "secret": self.secret,
-            "response": token,
-        })
+        payload = await self._post({"secret": self.secret, "response": token})
         if payload is None:
             return self._unavailable()
 
@@ -232,6 +219,7 @@ def _parse_hostnames(value: str) -> set[str]:
 def build_provider_registry(settings) -> ProviderRegistry:
     """Build only adapters with complete server-side configuration."""
     registry = ProviderRegistry()
+    timeout = settings.provider_verify_timeout_seconds
 
     if settings.recaptcha_secret_key and settings.recaptcha_allowed_hostnames:
         registry.register(RecaptchaSiteVerify(
@@ -239,17 +227,15 @@ def build_provider_registry(settings) -> ProviderRegistry:
             allowed_hostnames=_parse_hostnames(settings.recaptcha_allowed_hostnames),
             expected_action=settings.recaptcha_expected_action or None,
             minimum_score=settings.recaptcha_minimum_score,
+            timeout_seconds=timeout,
         ))
 
-    if (
-        settings.hcaptcha_secret_key
-        and settings.hcaptcha_sitekey
-        and settings.hcaptcha_allowed_hostnames
-    ):
+    if settings.hcaptcha_secret_key and settings.hcaptcha_sitekey and settings.hcaptcha_allowed_hostnames:
         registry.register(HCaptchaSiteVerify(
             secret=settings.hcaptcha_secret_key,
             sitekey=settings.hcaptcha_sitekey,
             allowed_hostnames=_parse_hostnames(settings.hcaptcha_allowed_hostnames),
+            timeout_seconds=timeout,
         ))
 
     if settings.turnstile_secret_key and settings.turnstile_allowed_hostnames:
@@ -257,6 +243,7 @@ def build_provider_registry(settings) -> ProviderRegistry:
             secret=settings.turnstile_secret_key,
             allowed_hostnames=_parse_hostnames(settings.turnstile_allowed_hostnames),
             expected_action=settings.turnstile_expected_action or None,
+            timeout_seconds=timeout,
         ))
 
     return registry
