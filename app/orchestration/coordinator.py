@@ -1,11 +1,13 @@
 from app.captcha.challenge_state import ChallengeState
 from app.detection.detector import ChallengeDetector
+from app.providers.base import VerificationResult
 
 
 class ChallengeCoordinator:
-    """Coordinates passive page inspection and synthetic verification outcomes.
+    """Coordinates passive page inspection and provider verification outcomes.
 
-    This coordinator never attempts to bypass third-party challenge systems.
+    This coordinator validates tokens issued by configured provider widgets.
+    It does not automate challenge solving or bypass provider protections.
     """
 
     def __init__(self):
@@ -34,8 +36,15 @@ class ChallengeCoordinator:
         }
 
     @staticmethod
+    def provider_verification_state(result: VerificationResult) -> ChallengeState:
+        if result.verified and result.available:
+            return ChallengeState.VERIFIED
+        if not result.available:
+            return ChallengeState.NEEDS_YOU
+        return ChallengeState.REJECTED
+
+    @staticmethod
     def synthetic_verification_state(result: dict) -> ChallengeState:
-        """Map a local synthetic-demo result to a terminal workflow state."""
         status = result.get("status")
         if status == "verified" and result.get("accepted") is True:
             return ChallengeState.VERIFIED
