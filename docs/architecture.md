@@ -1,42 +1,46 @@
 # Server 2 architecture
 
-Server 2 is a standalone browser-diagnostics and provider-verification service.
+Server 2 is a standalone browser-diagnostics and synthetic workflow demonstration service.
 
-## Flow
+## Current implemented flow
 
 ```mermaid
 flowchart TD
-  A[Authenticated job request] --> B[Session manager]
-  B --> C[SeleniumBase browser manager]
+  A[Authenticated API request] --> B{Request type}
+  B -->|Inspect| C[Standard SeleniumBase session]
   C --> D[Read-only page inspection]
-  D --> E[Challenge detector]
-  E --> F{Challenge indicators?}
-  F -->|No| G[PAGE_LOADED]
-  F -->|Yes| H[CHALLENGE_DETECTED]
-  H --> I[Configured provider verification]
-  I --> J{Provider confirms?}
-  J -->|Yes| K[VERIFIED]
-  J -->|No or unavailable| L[NEEDS_YOU]
-  G --> M[Result coordinator]
-  K --> M
-  L --> M
-  M --> N[Signed callback]
+  D --> E[Passive challenge signature detector]
+  E --> F[Inspection result]
+  B -->|Synthetic demo| G[Create arithmetic challenge]
+  G --> H[Submit demo answer]
+  H --> I[Synthetic challenge verification]
+  I --> J[Map result to workflow state]
+  J --> K[verified / pending / needs_you / failed]
 ```
 
 ## Modules
 
 - `app/browser/seleniumbase_manager.py`: standard SeleniumBase lifecycle.
-- `app/browser/session_manager.py`: in-memory session metadata registry.
-- `app/detection/evidence.py`: normalized evidence structure.
-- `app/detection/detector.py`: passive challenge classification.
-- `app/captcha/challenge_state.py`: allowed state transitions.
-- `app/captcha/result_validator.py`: validates provider-confirmed outcomes.
-- `app/providers/`: provider adapter contracts and registry.
-- `app/orchestration/coordinator.py`: detection-to-state coordination.
-- `app/orchestration/callback.py`: signed callback wrapper.
+- `app/browser/inspector.py`: read-only page inspection.
+- `app/detection/`: passive provider-signature classification and evidence.
+- `app/demo/service.py`: local arithmetic challenge lifecycle.
+- `app/captcha/challenge_state.py`: workflow state vocabulary and transitions.
+- `app/orchestration/coordinator.py`: page classification and synthetic result mapping.
+- `app/providers/`: provider adapter contracts and registry; no adapters are registered by default.
+- `app/integrations/rejekt.py`: signed HTTPS callback helper; not yet connected to a job endpoint.
 
-## Deliberate scope
+## Explicitly not implemented
 
-This repository does not include UC/stealth configuration or CAPTCHA-clicking/bypass logic. Browser inspection is for controlled QA and diagnostics. A challenge is not considered verified because a browser method returned; only a provider-confirmed result can be marked verified.
+- UC/stealth mode.
+- Pure CDP browser manager.
+- SeleniumBase `solve_captcha()` invocation.
+- Third-party CAPTCHA solving or anti-bot bypass.
+- Real provider adapters or provider credentials.
+- Durable jobs, sessions, or Redis queue.
+- End-to-end Rejekt job intake and callback orchestration.
 
-The session registry is in-memory and must be replaced by durable storage before production.
+The arithmetic demo is synthetic and is not a real CAPTCHA or a security control. A browser inspection result is never treated as proof of provider verification.
+
+## Local testing
+
+Set `CAPTCHA_DEMO_ENABLED=true`, start the FastAPI app, create a demo challenge, and submit the displayed arithmetic answer to its verification endpoint. Tests use synthetic values and do not contact CAPTCHA providers.
