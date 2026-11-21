@@ -21,11 +21,12 @@ class DemoVerifyRequest(BaseModel):
 
 class ProviderVerifyRequest(BaseModel):
     # Tokens are sensitive, short-lived and single-use. Never log or persist them.
-    token: SecretStr = Field(min_length=1, max_length=4096)
+    token: SecretStr
 
 
 class ProviderVerifyResponse(BaseModel):
     status: str
+    workflow_state: str
     verified: bool
     provider: str
     hostname: str | None = None
