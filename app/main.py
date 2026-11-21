@@ -21,10 +21,7 @@ app = FastAPI(
         "official server-side verification of provider-issued tokens."
     ),
 )
-demo = SyntheticChallengeService(
-    settings.demo_challenge_ttl_seconds,
-    settings.demo_max_attempts,
-)
+demo = SyntheticChallengeService(settings.demo_challenge_ttl_seconds, settings.demo_max_attempts)
 coordinator = ChallengeCoordinator()
 provider_registry = build_provider_registry(settings)
 
@@ -56,10 +53,7 @@ def inspect(request: InspectRequest):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Browser inspection failed: {type(exc).__name__}",
-        ) from exc
+        raise HTTPException(status_code=502, detail=f"Browser inspection failed: {type(exc).__name__}") from exc
 
 
 @app.post(
@@ -70,14 +64,12 @@ def inspect(request: InspectRequest):
 async def verify_provider(provider: str, request: ProviderVerifyRequest):
     adapter = provider_registry.get(provider.lower())
     if adapter is None:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Provider '{provider}' is not configured on Server 2",
-        )
+        raise HTTPException(status_code=503, detail=f"Provider '{provider}' is not configured on Server 2")
 
     # The token is forwarded only to the matching provider's official
     # Siteverify endpoint. It is not logged, stored, or returned to callers.
     result = await adapter.verify(request.token.get_secret_value())
+    workflow_state = coordinator.provider_verification_state(result)
 
     if not result.available:
         status = "unavailable"
@@ -88,6 +80,7 @@ async def verify_provider(provider: str, request: ProviderVerifyRequest):
 
     return ProviderVerifyResponse(
         status=status,
+        workflow_state=workflow_state.value,
         verified=result.verified,
         provider=result.provider,
         hostname=result.hostname,
@@ -112,7 +105,6 @@ def create_demo():
 def verify_demo(challenge_id: str, request: DemoVerifyRequest):
     if not settings.captcha_demo_enabled:
         raise HTTPException(status_code=404, detail="Synthetic demo is disabled")
-
     result = demo.verify(challenge_id, request.answer)
     state = coordinator.synthetic_verification_state(result)
     return {**result, "workflow_state": state.value}
