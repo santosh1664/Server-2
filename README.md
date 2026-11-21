@@ -1,25 +1,20 @@
 # Server 2 — Browser Challenge Intelligence
 
-Standalone FastAPI + SeleniumBase service for browser diagnostics, passive challenge classification, and a local synthetic verification demo.
+Standalone FastAPI + SeleniumBase service for read-only browser diagnostics and a local synthetic challenge demonstration.
 
-## Current scope
+## Scope
 
-- Standard SeleniumBase browser lifecycle for controlled QA.
-- Read-only page inspection and provider-signature evidence collection.
-- Explicit challenge-state transitions.
-- Provider adapter contracts and server-side verification architecture.
-- Signed HTTPS callback helper.
-- Local arithmetic challenge demo for exercising the state lifecycle.
+- Standard SeleniumBase browser lifecycle.
+- Read-only page inspection and passive challenge-signature detection.
+- Provider adapter interfaces (not configured by default).
+- Local arithmetic challenge demo for exercising workflow states.
+- API-key protected endpoints.
 
-This repository does not include UC/stealth configuration, CAPTCHA-clicking logic, or third-party challenge bypass code. It does not call SeleniumBase's `sb.solve_captcha()`. A page challenge is not considered verified merely because browser automation returned; only a provider-confirmed result can be marked verified.
-
-## Architecture
-
-See [docs/architecture.md](docs/architecture.md) for the module diagram and [docs/patchright-vs-seleniumbase.md](docs/patchright-vs-seleniumbase.md) for the browser framework comparison.
+This project does **not** implement UC/stealth mode, SeleniumBase `solve_captcha()`, third-party CAPTCHA solving, or anti-bot bypass. The arithmetic demo is not a real CAPTCHA or security control.
 
 ## Setup
 
-Python 3.11+ and Chromium are required.
+Python 3.11+ and a compatible Chrome/Chromium installation are required.
 
 ```bash
 python -m venv .venv
@@ -29,31 +24,40 @@ cp .env.example .env
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8080
 ```
 
+Set a strong `API_KEY`. Enable the synthetic demo only in local development:
+
+```dotenv
+CAPTCHA_DEMO_ENABLED=true
+```
+
 Open http://127.0.0.1:8080/docs.
-
-Enable the local synthetic demo only in development with `CAPTCHA_DEMO_ENABLED=true`.
-
-The inspection endpoint accepts HTTPS URLs and blocks local/private/reserved destinations. Application-level URL checks are not a replacement for network egress firewall rules.
 
 ## Endpoints
 
 - `GET /health`
-- `GET /api/v1/providers`
-- `POST /api/v1/inspect`
-- `POST /api/v1/demo/challenges` (development-only, disabled by default)
-- `POST /api/v1/demo/challenges/{challenge_id}/verify` (development-only)
+- `GET /api/v1/providers` (API key required)
+- `POST /api/v1/inspect` (API key required)
+- `POST /api/v1/demo/challenges` (API key + demo flag required)
+- `POST /api/v1/demo/challenges/{challenge_id}/verify` (API key + demo flag required)
 
-Authenticated endpoints require `X-API-Key`.
+Pass the API key in the `X-API-Key` header.
+
+## Synthetic demo
+
+1. Create a challenge.
+2. Read the arithmetic prompt.
+3. Submit an answer to the verify endpoint.
+4. Observe `verified`, `pending`, `failed`, or `expired` and its workflow state.
+
+The service stores demo challenges in memory. They disappear on restart and are not suitable for production.
 
 ## Production gaps
 
-Before production, add:
-- Redis/PostgreSQL persistence and a durable job queue.
-- Browser process/container isolation and concurrency limits.
-- DNS-rebinding-resistant egress controls and redirect revalidation.
-- Provider-specific response validation, hostname allowlists and secret rotation.
-- Rate limiting, audit retention, metrics and structured logs.
-- Rejekt job intake and signed callback endpoint contracts.
-- Integration tests against provider-owned test configurations.
+- Durable job/session storage and queue.
+- Browser process isolation and concurrency limits.
+- Network egress controls and redirect/DNS revalidation.
+- Provider-specific server-side verification adapters for sites whose owners configure them.
+- Rejekt callback implementation and integration tests.
+- Rate limiting, audit logging, metrics and secret rotation.
 
-The in-memory session and synthetic demo stores are not production storage.
+Do not treat challenge detection as proof of a challenge being solved.
