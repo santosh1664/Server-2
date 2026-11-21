@@ -1,24 +1,39 @@
+from app.browser.seleniumbase_manager import SeleniumBaseManager
 from app.config import settings
-from app.detection.classifier import classify_evidence
+from app.orchestration.coordinator import ChallengeCoordinator
 from app.schemas import InspectResponse
 from app.security import validate_public_https_url
 
+
 class SeleniumBaseInspector:
-    """Read-only Chromium diagnostics through SeleniumBase CDP mode."""
+    """Read-only page diagnostics using standard SeleniumBase browser mode."""
+
+    def __init__(self):
+        self.browser_manager = SeleniumBaseManager()
+        self.coordinator = ChallengeCoordinator()
+
     def inspect(self, raw_url: str) -> InspectResponse:
         url = validate_public_https_url(raw_url)
-        from seleniumbase import SB  # lazy import for API/demo-only environments
-        with SB(headless=settings.browser_headless, test=True) as sb:
-            sb.activate_cdp_mode(url)
+
+        with self.browser_manager.session(headless=settings.browser_headless) as sb:
+            sb.open(url)
             sb.sleep(2)
             title = sb.get_title()
             final_url = sb.get_current_url()
             html = sb.get_page_source()
             visible_text = sb.get_text("body") if sb.is_element_present("body") else ""
-        result = classify_evidence(final_url, html, visible_text)
+
+        result = self.coordinator.classify_page(
+            url=final_url,
+            title=title,
+            html=html,
+            visible_text=visible_text,
+        )
         return InspectResponse(
-            status="needs_review" if result.detected else "page_loaded",
-            title=title, final_url=final_url,
-            challenge_detected=result.detected,
-            providers=result.providers, evidence=result.evidence,
+            status=result["state"],
+            title=result["title"],
+            final_url=result["page_url"],
+            challenge_detected=result["challenge_detected"],
+            providers=result["providers"],
+            evidence=result["evidence"],
         )
