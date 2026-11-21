@@ -1,7 +1,9 @@
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, SecretStr
+
 
 class InspectRequest(BaseModel):
     url: HttpUrl
+
 
 class InspectResponse(BaseModel):
     status: str
@@ -12,5 +14,22 @@ class InspectResponse(BaseModel):
     evidence: list[str] = Field(default_factory=list)
     note: str = "Read-only diagnostics; no CAPTCHA interaction or solving."
 
+
 class DemoVerifyRequest(BaseModel):
     answer: str = Field(min_length=1, max_length=16)
+
+
+class ProviderVerifyRequest(BaseModel):
+    # Tokens are sensitive, short-lived and single-use. Never log or persist them.
+    token: SecretStr = Field(min_length=1, max_length=4096)
+
+
+class ProviderVerifyResponse(BaseModel):
+    status: str
+    verified: bool
+    provider: str
+    hostname: str | None = None
+    action: str | None = None
+    score: float | None = None
+    error_codes: list[str] = Field(default_factory=list)
+    reason: str | None = None
