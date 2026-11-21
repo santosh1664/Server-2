@@ -9,19 +9,25 @@ class SeleniumBaseInspector:
     """Read-only page diagnostics using standard SeleniumBase browser mode."""
 
     def __init__(self):
-        self.browser_manager = SeleniumBaseManager()
+        self.browser_manager = SeleniumBaseManager(
+            headless=settings.browser_headless
+        )
         self.coordinator = ChallengeCoordinator()
 
     def inspect(self, raw_url: str) -> InspectResponse:
         url = validate_public_https_url(raw_url)
 
-        with self.browser_manager.session(headless=settings.browser_headless) as sb:
+        with self.browser_manager.session() as sb:
             sb.open(url)
             sb.sleep(2)
             title = sb.get_title()
             final_url = sb.get_current_url()
             html = sb.get_page_source()
-            visible_text = sb.get_text("body") if sb.is_element_present("body") else ""
+            visible_text = (
+                sb.get_text("body")
+                if sb.is_element_present("body")
+                else ""
+            )
 
         result = self.coordinator.classify_page(
             url=final_url,
